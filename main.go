@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -9,6 +10,7 @@ import (
 	"github.com/tarm/serial"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 )
 
@@ -55,20 +57,32 @@ var (
 )
 
 func main() {
-	log.Println("Raven exporter starting")
-	http.Handle("/metrics", promhttp.Handler())
+	var opts struct {
+		Port     string `long:"serial-port" description:"Serial port to use, e. g. COM4 or /dev/ttyUSB0" required:"true"`
+		HttpHost string `long:"http-host" description:"Host to bind metrics exporter, e. g. localhost" required:"true" default:"localhost"`
+		HttpPort int    `long:"http-port" description:"Port to bind metrics exporter, e. g. 2112" required:"true" default:"2112"`
+		HttpPath string `long:"metrics-path" description:"Path for the metrics endpoint, e. g. /metrics" required:"true" default:"/metrics"`
+	}
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		os.Exit(1)
+	}
+	log.Printf("Raven exporter exporting metrics from %s\n", opts.Port)
+	http.Handle(opts.HttpPath, promhttp.Handler())
 	go func() {
-		err := http.ListenAndServe("localhost:2112", nil)
+		addr := fmt.Sprintf("%s:%d", opts.HttpHost, opts.HttpPort)
+		log.Printf("Starting metrics server at %s%s\n", addr, opts.HttpPath)
+		err := http.ListenAndServe(addr, nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Error starting metrics server: %v\n", err)
 		}
 	}()
 	log.Println("Server started")
 
-	s := &serial.Config{Name: "COM5", Baud: 115200}
+	s := &serial.Config{Name: opts.Port, Baud: 115200}
 	port, err := serial.OpenPort(s)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error opening serial port: %v\n", err)
 	}
 	defer port.Close()
 	log.Println("Connected to serial port")
@@ -77,7 +91,7 @@ func main() {
 
 	for scanner.Scan() {
 		if scanner.Err() != nil {
-			log.Fatal(scanner.Err())
+			log.Fatalf("Error reading from serial port: %v\n", scanner.Err())
 		}
 		tag := scanner.Element()
 		switch el := tag.(type) {

@@ -3,6 +3,7 @@ module raven-exporter
 go 1.19
 
 require (
+	github.com/jessevdk/go-flags v1.5.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/srom/xmlstream v0.0.0-20150105231402-e4c2683fc976
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
